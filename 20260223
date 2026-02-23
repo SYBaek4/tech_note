@@ -1,0 +1,19 @@
+PREVIOUS
+java"        paging: false,\r\n" +
+UPGRADE
+java"        paging: " + ("YES".equalsIgnoreCase(param.get("showAll")) ? "true" : "false") + ",\r\n" +
+"        pageLength: 50,\r\n" +
+
+DataTables 라이브러리 dom 옵션 규칙이에요!
+l = length (페이지당 몇개 보여줄지 선택)
+f = filter (기본 검색박스)
+t = table (테이블 본체) ← 필수!
+i = info ("Showing 1 to 50 of 2,122 entries")
+p = pagination (이전/다음 버튼)
+r = processing (로딩 표시)
+지금 코드에서 dom을 커스텀으로 직접 조립하고 있잖아요:
+java"          '<\"container-fluid small mb-1\"' +\r\n" +   // 커스텀 div
+"            '<\"d-flex...\"' +\r\n" +                  // 커스텀 레이아웃
+"          '>t',\r\n" +                                 // ← 테이블만 있고 p 없음!
+원래 DataTables 기본값은 "lfrtip" 이라서 다 포함되어 있는데, 커스텀 dom 짜면서 p를 빠뜨린 거예요.
+그리고 아까 paging: false일때는 어차피 페이징 버튼 필요없으니까 몰랐던 거고, paging: true 로 바꾸면서 처음으로 필요해진 거예요 😊
