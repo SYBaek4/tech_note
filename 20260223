@@ -17,3 +17,12 @@ java"          '<\"container-fluid small mb-1\"' +\r\n" +   // 커스텀 div
 "          '>t',\r\n" +                                 // ← 테이블만 있고 p 없음!
 원래 DataTables 기본값은 "lfrtip" 이라서 다 포함되어 있는데, 커스텀 dom 짜면서 p를 빠뜨린 거예요.
 그리고 아까 paging: false일때는 어차피 페이징 버튼 필요없으니까 몰랐던 거고, paging: true 로 바꾸면서 처음으로 필요해진 거예요 😊
+
+java
+"              '<\"d-flex align-items-center\"' +\r\n" +
+"                '<\"me-3\"i>' +\r\n" +
+"                '<\"ms-2\"p>' +\r\n" +   // ✅ 여기 추가
+"                '<\""+descId+"excel-toolbar ms-2\">' +\r\n" +
+"              '>' +\r\n" +
+"            '>' +\r\n" +
+"          '>t',\r\n" +   // ✅ 뒤에 p 제거
