@@ -1,0 +1,31 @@
+						    <div class="float-left ml-2 mt-2">
+							    <div class="input-group input-group-sm">
+							        <span class="input-group-text">From</span>
+							        <input type="text" id="lookupSDate" name="sDate"
+							               class="form-control form-control-sm"
+							               value="<%= sDate %>" style="width:110px;" />
+							    </div>
+							</div>
+							<div class="float-left ml-2 mt-2">
+							    <div class="input-group input-group-sm">
+							        <span class="input-group-text">To</span>
+							        <input type="text" id="lookupEDate" name="eDate"
+							               class="form-control form-control-sm"
+							               value="<%= eDate %>" style="width:110px;" />
+							    </div>
+							</div>
+
+SAME BUT DIFF DESIGN
+
+							<div class="float-left ml-2 mt-2">
+							    <div class="input-group input-group-sm">
+							        <span class="input-group-text">Date</span>
+							        <input type="text" id="lookupSDate" name="sDate"
+							               class="form-control form-control-sm"
+							               value="<%= sDate %>" style="width:110px;" />
+							        <span class="input-group-text"><i class="fas fa-arrows-alt-h"></i></span>
+							        <input type="text" id="lookupEDate" name="eDate"
+							               class="form-control form-control-sm"
+							               value="<%= eDate %>" style="width:110px;" />
+							    </div>
+							</div>
