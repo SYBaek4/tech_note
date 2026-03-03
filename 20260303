@@ -1,0 +1,22 @@
+dir        → 폴더 내용 보여줘  (list directory)
+/b         → 파일명만 심플하게  (bare format)
+*.jar      → .jar 확장자만 필터
+>          → 화면 출력을 파일로 저장  (리다이렉션)
+file.txt   → 저장할 파일명
+
+dir /?
+
+dir /b      → 파일명만
+dir /s      → 하위폴더 포함
+dir /o:d    → 날짜순 정렬
+dir /o:s    → 크기순 정렬
+
+# 특정 확장자 목록
+dir /b *.xml > xmllist.txt
+dir /b *.java > javafiles.txt
+
+# 하위폴더 포함 전체 파일 목록
+dir /b /s > allfiles.txt
+
+# 특정 단어 포함된 파일만
+dir /b *config* > configfiles.txt
