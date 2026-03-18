@@ -1,0 +1,236 @@
+# Technical Notes — OCTA Loss Status AI Report
+**Date:** 2026-03-18  
+**Project:** HDI LCD/LCM OCTA Loss Status AI Reporting System  
+
+---
+
+## 1. Java String Escaping in JavaScript — `dom` Option (DataTables)
+
+### Problem
+When embedding JavaScript code inside Java string concatenation, the DataTables `dom` option caused multiple compile errors:
+
+```
+- Syntax error on token "container", delete this token
+- The target type of this expression must be a functional interface
+- Syntax error on tokens, delete these tokens
+```
+
+### Root Cause
+Using `\'` (invalid Java escape) inside Java string literals when building multi-line JS `dom` strings.
+
+### Solution
+Write `dom` as JS concatenation with proper Java string wrapping. Use backtick template literals inside `initComplete` for HTML injection to avoid quote conflicts:
+
+```java
+// ✅ Correct: JS concat inside Java string
++ "    dom:\r\n"
++ "      '<\"container-fluid small mb-1\"'  +\r\n"
++ "      '<\"d-flex justify-content-between align-items-center\"'  +\r\n"
++ "        '<\"me-3 custom-search-S\">' +\r\n"
++ "      '>t',\r\n"
++ "    initComplete: function () {\r\n"
++ "      $('.custom-search-S').html(`\r\n"
++ "        <div class=\"input-group input-group-sm\">\r\n"
++ "          <input type=\"search\" id=\"customSearch_S\">\r\n"
++ "        </div>\r\n"
++ "      `);\r\n"
+```
+
+### Key Rule
+- Outer quotes: Java `"..."` 
+- Inner JS single quotes: `'...'` — no escaping needed
+- HTML attributes inside backtick template literals: `\"...\"` (escaped double quotes)
+
+---
+
+## 2. DataTables Custom Search with `scrollY` — Input Binding Bug
+
+### Problem
+Custom keyword search input had no effect on table filtering when `scrollY` was set.
+
+### Root Cause
+Using DataTables built-in `f` (filter) slot in `dom` combined with `scrollY` causes the search input event binding to break — the input is re-rendered but the event listener is lost.
+
+### Solution
+Remove `f` from `dom`, render a custom search input manually inside `initComplete`, and register a custom filter function via `$.fn.dataTable.ext.search.push()`:
+
+```javascript
+// Register custom filter (scoped to specific table by nTable.id)
+$.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+    if (settings.nTable.id !== 'tblSummary') return true;
+    const val = $searchInput.val() || '';
+    const isOr = $('#orMode_S').is(':checked');
+    const keywords = val.toLowerCase().split(/\s+/).filter(Boolean);
+    const rowText = data.join(' ').toLowerCase();
+    if (keywords.length === 0) return true;
+    return isOr
+        ? keywords.some(k => rowText.includes(k))
+        : keywords.every(k => rowText.includes(k));
+});
+```
+
+### Key Points
+- Always initialize `$.fn.dataTable.ext.search = []` before table init to prevent stale filter accumulation across refreshes
+- Scope filters by `settings.nTable.id` when multiple DataTables exist on the same page
+- OR/AND mode toggle is trivial with this pattern
+
+---
+
+## 3. Flatpickr Calendar — Bootstrap Class Restoration (WMAPS Pattern)
+
+### Problem
+After replacing jQuery UI datepicker with Flatpickr, the date input fields lost Bootstrap sizing (`form-control`, `form-control-sm`) and appeared broken.
+
+### Root Cause
+Flatpickr hides the original `<input>` and creates a **new input element** in its place. The new element does not inherit any classes from the original.
+
+### Solution
+Use `onReady` callback to re-apply Bootstrap classes to the newly created input:
+
+```javascript
+flatpickr('#lookupProcessDateFrom', {
+    dateFormat: 'm/d/Y',
+    defaultDate: '<%=sDate%>',
+    onReady: function(_, __, fp) {
+        $(fp.input).addClass('form-control form-control-sm');
+    }
+});
+```
+
+### CDN
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+```
+
+---
+
+## 4. Passing Multiple Parameters via a Single Hidden Input (Pipe-Delimited)
+
+### Problem
+The `do_detail()` JS function only has 4 parameters (`mode`, `pid`, `symptom`, `range`). For the WIP detail feature, we needed to pass both `lcdType` AND `wipLocation` through the `symptom` slot.
+
+### Solution
+Combine both values with a pipe delimiter in the `symptom` argument, then parse on the Servlet side:
+
+**Date_Servlet (building the link):**
+```java
+// lcdtype mode: "12|Good LCD" — lcdType pipe wipLocation
+title = "do_detail('lcdtype','WIP','" + vt.getLcdType() + "|Good LCD','')";
+```
+
+**Detail Servlet (parsing):**
+```java
+String rawSymptom = request.getParameter("Symptom");
+if (rawSymptom.contains("|")) {
+    String[] parts = rawSymptom.split("\\|", 2);
+    LcdType     = parts[0];   // "12"
+    WipLocation = parts[1];   // "Good LCD"
+} else {
+    LcdType = rawSymptom;     // normal case (no WIP location filter)
+}
+param.put("symptom", WipLocation);
+```
+
+**Beans (filtering):**
+```java
+if (Type.equalsIgnoreCase("WIP") && !WipLocation.isEmpty()) {
+    conds.add("A.WIP_LOCATION = '" + WipLocation + "' \r\n");
+}
+```
+
+### Why This Works
+- `bydate` mode: `Symptom` = WipLocation directly (e.g. `"Good LCD"`)
+- `lcdtype` mode: `Symptom` = `"lcdType|WipLocation"` (e.g. `"12|Good LCD"`)
+- Empty `WipLocation` = no extra filter, shows all WIP records (original behavior preserved)
+
+---
+
+## 5. DataTables — `columns().visible()` Does Not Work with `scrollX`
+
+### Problem
+Attempted to implement expand/collapse for WIP detail columns using DataTables API:
+
+```javascript
+api.columns('.wip-col-S').visible(false);  // Does not work reliably
+```
+
+Also tried CSS `display:none` on `<th>/<td>` — DataTables `scrollX` overrides it.
+
+### Root Cause
+When `scrollX: true` is set, DataTables internally creates **two tables** (a cloned header table + body table). `columns().visible()` can cause layout desync between the two, and CSS `display:none` is ignored during column width recalculation.
+
+Additional complications:
+1. `<button>` inside `<th>` gets cloned by DataTables scrollX header, causing `this` reference conflicts
+2. `colspan` headers don't map 1:1 to DataTables column index, so `.columns('.className')` selector may not resolve correctly
+
+### Correct Approach (for future reference)
+- Place the toggle button **outside the table** in a separate `<div>`, not inside `<th>`
+- Use **column index** instead of class selector: `api.columns([19,20,21,22,23,24,25,26,27,28,29]).visible(false)`
+- Not implemented — reverted to always-visible 13 WIP columns
+
+---
+
+## 6. HTML `title` Attribute as Zero-Cost Tooltip on Table Links
+
+### Problem
+Table links (`do_detail()` calls) had no visual indication of what data they would load on hover.
+
+### Solution
+Add the `title` attribute to every anchor tag — the browser renders it as a native tooltip with zero additional code:
+
+```java
+// Before
+as = "<a href=\"javascript:void(0)\" class='ba' onClick=\"" + title + "\">";
+
+// After — add title= with the same JS call string
+as = "<a href=\"javascript:void(0)\" class='ba' title=\"" + title + "\" onClick=\"" + title + "\">";
+```
+
+**Result on hover:**
+```
+do_detail('bydate','WIP','RMA Wait','Monthly,2026,3')
+```
+
+### Notes
+- 40 link instances updated in a single string replacement pass
+- No CSS, no JS, no libraries required
+- Displays the exact function call — helpful for debugging as well as UX
+
+---
+
+## 7. WIP Location Drill-Down via `LAST_SYMPTOM` + `WIP_LOCATION` Columns
+
+### Architecture
+WIP units are classified in SQL using `LAST_PROCESS`-based CASE logic:
+
+```sql
+CASE
+    WHEN LAST_PROCESS IN (89000,87900,80121,...) THEN NULL  -- not WIP
+    WHEN LAST_PROCESS IN (80100,80110,80112,...) THEN 'LCM'
+    WHEN LAST_PROCESS = 80120 AND LAST_DEFECT_TYPE = 'ALLGOOD' THEN 'LCM Storage (AllGood)'
+    WHEN LAST_PROCESS = 80120 AND LAST_DEFECT_TYPE = 'RMA'     THEN 'LCM Storage (RMA)'
+    WHEN LAST_PROCESS = 80128                                   THEN 'Frame Recycle'
+    WHEN LAST_PROCESS IN (80117,86900,87000)                    THEN 'Line Reject'
+    WHEN LAST_PROCESS = 87100                                   THEN 'RMA Wait'
+    WHEN LAST_PROCESS IN (81000,81100,82000,...)                THEN 'Good LCD'
+    ELSE 'Others'
+END AS WIP_LOCATION
+```
+
+### WIP Definition
+WIP includes **both**:
+1. Units that completed 80117 inspection but final disposition is not yet confirmed
+2. Units currently still in progress through 80117 inspection
+
+### Data Flow
+```
+Line(87000) Fail → LCM(80117) Re-inspection
+→ Pass  : AllGood / MnM Polishing Good
+→ Fail  : OEM RMA / R2 RMA / R2 / BER Scrap / Inven Out  
+→ Pending: WIP (classified by Last Process location)
+```
+
+---
+*Generated: 2026-03-18 | OCTA Loss Status AI Reporting System*
